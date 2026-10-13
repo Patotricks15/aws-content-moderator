@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${project_name} — Generative AI Content Moderator</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f172a;
+      --panel: rgba(15, 23, 42, 0.9);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22d3ee;
+      --border: rgba(148, 163, 184, 0.22);
+      --danger: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: linear-gradient(135deg, #020617 0%, #0f172a 55%, #111827 100%);
+      padding: 40px 20px;
+    }
+    .shell {
+      max-width: 720px;
+      margin: 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+    }
+    h1 { font-size: 1.8rem; margin-top: 0; }
+    p.lede { color: var(--muted); }
+    form { display: flex; gap: 10px; margin-top: 20px; }
+    input {
+      flex: 1;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      font-size: 1rem;
+    }
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #0f172a;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    #result { margin-top: 24px; }
+    #result img {
+      max-width: 100%;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+    }
+    .blocked {
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: rgba(248, 113, 113, 0.12);
+      border: 1px solid rgba(248, 113, 113, 0.35);
+      color: var(--danger);
+    }
+    .score { margin-top: 10px; font-size: 0.85rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <h1>Generative AI Content Moderator</h1>
+    <p class="lede">Describe an image to generate. The prompt and the generated image are both checked for toxic content before anything is shown.</p>
+
+    <form id="generate-form">
+      <input id="prompt" type="text" placeholder="e.g. a watercolor painting of a mountain lake" autocomplete="off" required />
+      <button id="send" type="submit">Generate</button>
+    </form>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const API_URL = "${api_endpoint}";
+    const form = document.getElementById("generate-form");
+    const promptInput = document.getElementById("prompt");
+    const sendButton = document.getElementById("send");
+    const result = document.getElementById("result");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const prompt = promptInput.value.trim();
+      if (!prompt) return;
+
+      sendButton.disabled = true;
+      result.innerHTML = "<p class=\"lede\">Generating and moderating…</p>";
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.blocked) {
+          result.innerHTML = `
+            <div class="blocked">Blocked: $${data.reason || "request failed"}</div>
+            <div class="score">Toxic score: $${(data.toxic_score ?? 0).toFixed(2)}</div>
+          `;
+          return;
+        }
+
+        result.innerHTML = `
+          <img src="data:image/png;base64,$${data.image_base64}" alt="Generated image for: $${prompt}" />
+          <div class="score">Toxic score: $${(data.toxic_score ?? 0).toFixed(2)}</div>
+        `;
+      } catch (err) {
+        result.innerHTML = `<div class="blocked">Error: $${err.message}</div>`;
+      } finally {
+        sendButton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
